@@ -15,6 +15,9 @@ export const defineLibVitestConfig = (
     test: {
       globals: true,
       environment: 'jsdom',
+      testTimeout: 5000,
+      hookTimeout: 10000,
+      teardownTimeout: 10000,
       coverage: {
         provider: 'istanbul', // or 'v8'
         include: ['src'],
