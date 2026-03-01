@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react-swc';
-import { defineConfig, mergeConfig, type UserConfig } from 'vitest/config';
+import type { UserConfig } from 'vite';
+import { defineConfig, mergeConfig } from 'vitest/config';
 import type { ConfigsManager } from '../utils/configs-manager.js';
 
 export const defineLibVitestConfig = (
