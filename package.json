@@ -27,6 +27,7 @@
     "@types/node": "22.7.4",
     "@unocss/preset-icons": "^66.6.2",
     "@vitejs/plugin-react-swc": "^4.2.3",
+    "@vitest/coverage-istanbul": "^4.0.18",
     "cac": "^7.0.0",
     "gh-release": "^7.0.2",
     "htmlfy": "^1.0.1",
