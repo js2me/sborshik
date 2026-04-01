@@ -2,6 +2,7 @@
   "compilerOptions": {
     "types": ["node"],
     "target": "ESNext",
+    "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,
@@ -9,7 +10,7 @@
     "lib": ["ESNext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,

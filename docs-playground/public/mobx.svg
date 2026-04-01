@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Playground icon">
+  <defs>
+    <linearGradient id="playground-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5d8eff" />
+      <stop offset="100%" stop-color="#ff733f" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0f172a" />
+  <path
+    d="M34 38h60c6.627 0 12 5.373 12 12v28c0 6.627-5.373 12-12 12H34c-6.627 0-12-5.373-12-12V50c0-6.627 5.373-12 12-12Z"
+    fill="url(#playground-gradient)"
+  />
+  <path
+    d="M44 56h40M44 72h24"
+    stroke="#fff"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="8"
+  />
+</svg>

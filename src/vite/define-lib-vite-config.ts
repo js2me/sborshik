@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
-import { type PluginContext, rollup } from 'rollup';
+import type { PluginContext } from 'rolldown';
+import { rollup } from 'rollup';
 import dts from 'rollup-plugin-dts';
 import { defineConfig, mergeConfig, type UserConfig } from 'vite';
 import type { ConfigsManager } from '../utils/configs-manager.js';

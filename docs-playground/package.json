@@ -1,0 +1,13 @@
+{
+  "name": "docs-playground",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Embedded VitePress playground for sborshik docs helpers",
+  "author": "js2me",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/js2me/exports-post-build-script"
+  }
+}
