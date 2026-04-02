@@ -36,6 +36,13 @@ export default defineDocsVitepressConfig(configs, {
           { text: 'Theme customization', link: '/guides/theme-customization' },
         ],
       },
+      {
+        text: 'Demo',
+        link: '/demo/lorem-ipsum',
+        items: [
+          { text: 'Lorem ipsum', link: '/demo/lorem-ipsum' },
+        ],
+      },
     ],
   },
 });
