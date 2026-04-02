@@ -98,7 +98,10 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
         return;
       }
 
-      if (globPatterns.length && moduleNameMatchesAnyGlob(moduleName, globPatterns)) {
+      if (
+        globPatterns.length &&
+        moduleNameMatchesAnyGlob(moduleName, globPatterns)
+      ) {
         return;
       }
 
