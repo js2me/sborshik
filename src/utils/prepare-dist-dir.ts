@@ -1,11 +1,37 @@
 import { copyFileSync, existsSync, readdirSync } from 'node:fs';
 import { ConfigsManager } from './configs-manager.js';
 
+/** По умолчанию не публикуем в exports внутренние чанки Vite/Rollup (`chunk-…`). */
+const DEFAULT_IGNORED_MODULE_NAME_GLOB_PATTERNS = ['chunk-*'];
+
+function globPatternToRegExp(pattern: string): RegExp {
+  const re = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\0GLOBSTAR\0')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\0GLOBSTAR\0/g, '.*');
+  return new RegExp(`^${re}$`);
+}
+
+function moduleNameMatchesAnyGlob(
+  moduleName: string,
+  patterns: string[],
+): boolean {
+  return patterns.some((p) => globPatternToRegExp(p).test(moduleName));
+}
+
 export interface PrepareDistDirConfig {
   extraFilesToCopy?: string[];
   binPath?: string;
   configs: ConfigsManager;
   ignoredModuleNamesForExport?: string[];
+  /**
+   * Glob-паттерны имён модулей (без расширения), которые не попадут в `exports`.
+   * Сегменты пути разделяются `/`; `*` — один сегмент, `**` — любой суффикс.
+   * @default `['chunk-*']` — скрывает типичные чанки после `vite build` (см. также `chunk-**` для вложенных путей).
+   * Передайте `[]`, чтобы отключить фильтр по умолчанию.
+   */
+  ignoredModuleNameGlobPatternsForExport?: string[];
 }
 
 export const prepareDistDir = async (config: PrepareDistDirConfig) => {
@@ -40,6 +66,11 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
     // Собираем список всех модулей из dist
     const distFiles = readdirSync('dist');
 
+    const globPatterns =
+      config.ignoredModuleNameGlobPatternsForExport === undefined
+        ? DEFAULT_IGNORED_MODULE_NAME_GLOB_PATTERNS
+        : config.ignoredModuleNameGlobPatternsForExport;
+
     // Находим все уникальные имена модулей
     const moduleNames = new Set<string>();
 
@@ -64,6 +95,10 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
       }
 
       if (config.ignoredModuleNamesForExport?.some((it) => it === moduleName)) {
+        return;
+      }
+
+      if (globPatterns.length && moduleNameMatchesAnyGlob(moduleName, globPatterns)) {
         return;
       }
 
