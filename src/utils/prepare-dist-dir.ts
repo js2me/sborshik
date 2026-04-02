@@ -13,11 +13,11 @@ function globPatternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${re}$`);
 }
 
-function moduleNameMatchesAnyGlob(
+function findMatchingGlobPattern(
   moduleName: string,
   patterns: string[],
-): boolean {
-  return patterns.some((p) => globPatternToRegExp(p).test(moduleName));
+): string | undefined {
+  return patterns.find((p) => globPatternToRegExp(p).test(moduleName));
 }
 
 export interface PrepareDistDirConfig {
@@ -73,6 +73,7 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
 
     // Находим все уникальные имена модулей
     const moduleNames = new Set<string>();
+    const loggedGlobSkippedModules = new Set<string>();
 
     distFiles.forEach((file) => {
       // Пропускаем .map файлы, LICENSE, README.md, package.json
@@ -98,11 +99,20 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
         return;
       }
 
-      if (
-        globPatterns.length &&
-        moduleNameMatchesAnyGlob(moduleName, globPatterns)
-      ) {
-        return;
+      if (globPatterns.length) {
+        const matchedPattern = findMatchingGlobPattern(
+          moduleName,
+          globPatterns,
+        );
+        if (matchedPattern) {
+          if (!loggedGlobSkippedModules.has(moduleName)) {
+            loggedGlobSkippedModules.add(moduleName);
+            console.log(
+              `⏭️  Skipping "${moduleName}" for package.json exports (matches ignored glob "${matchedPattern}").`,
+            );
+          }
+          return;
+        }
       }
 
       moduleNames.add(moduleName);
