@@ -2,13 +2,14 @@ import react from '@vitejs/plugin-react-swc';
 import type { UserConfig } from 'vite';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import type { ConfigsManager } from '../utils/configs-manager.js';
-import { getLibEntryAndAliasFromConfigs } from './lib-entry-alias-from-configs.js';
 
 export const defineLibVitestConfig = (
   configsManager: ConfigsManager,
   config?: Partial<UserConfig>,
 ) => {
-  const { alias } = getLibEntryAndAliasFromConfigs(configsManager);
+  const orderedAlias = [...configsManager.entries].sort(
+    (a, b) => b.importName.length - a.importName.length,
+  );
 
   const definedConfig: UserConfig = {
     plugins: [
@@ -31,7 +32,10 @@ export const defineLibVitestConfig = (
       },
     },
     resolve: {
-      alias,
+      alias: orderedAlias.map((e) => ({
+        find: e.importName,
+        replacement: e.entryPath,
+      })),
     },
   };
 
