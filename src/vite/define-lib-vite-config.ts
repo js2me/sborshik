@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import type { PluginContext } from 'rolldown';
 import { rollup } from 'rollup';
 import dts from 'rollup-plugin-dts';
@@ -8,6 +7,7 @@ import {
   type PrepareDistDirConfig,
   prepareDistDir,
 } from '../utils/prepare-dist-dir.js';
+import { getLibEntryAndAliasFromConfigs } from './lib-entry-alias-from-configs.js';
 
 export const defineLibViteConfig = (
   configs: ConfigsManager,
@@ -20,29 +20,8 @@ export const defineLibViteConfig = (
       externalDeps?: string[];
     },
 ) => {
-  const __dirname = configs.rootPath;
-
-  const entry = Object.fromEntries(
-    Object.entries(configs.pathAliasesFromTsConfig).map(([key, [value]]) => {
-      const name = key.split('/').pop()!;
-      const entryPath = value.startsWith('./') ? value.slice(2) : value;
-      return [name, resolve(__dirname, entryPath)];
-    }),
-  );
-
-  const hasIndexTsInTsConfigPathAlias =
-    !!configs.pathAliasesFromTsConfig[configs.package.name];
-
-  if (configs.hasSourceIndexTs && !hasIndexTsInTsConfigPathAlias) {
-    entry.index = configs.sourceIndexTs;
-  }
-
-  const alias = Object.fromEntries(
-    Object.entries(configs.pathAliasesFromTsConfig).map(([key, [value]]) => {
-      const entryPath = value.startsWith('./') ? value.slice(2) : value;
-      return [key, resolve(__dirname, entryPath)];
-    }),
-  );
+  const { entry, alias, hasIndexTsInTsConfigPathAlias } =
+    getLibEntryAndAliasFromConfigs(configs);
 
   let dtsGenerationComplete: PromiseWithResolvers<void> | undefined;
   let customScriptBeforeFinish: PromiseWithResolvers<void> | undefined;
