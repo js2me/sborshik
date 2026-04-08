@@ -32,6 +32,12 @@ export interface PrepareDistDirConfig {
    * Передайте `[]`, чтобы отключить фильтр по умолчанию.
    */
   ignoredModuleNameGlobPatternsForExport?: string[];
+  /**
+   * Если `true`, подозрительные записи `exports` (меньше трёх полей — обычно types/import/require;
+   * часто признак некорректного импорта в исходниках) не попадают в `dist/package.json`.
+   * Предупреждение в консоль при этом всё равно выводится.
+   */
+  omitStrangeExportEntries?: boolean;
 }
 
 export const prepareDistDir = async (config: PrepareDistDirConfig) => {
@@ -167,11 +173,16 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
       // Определяем путь экспорта
       const exportPath = isIndexModule ? '.' : `./${moduleName}`;
 
-      if (Object.keys(exportEntry).length < 3) {
+      const isStrangeExport = Object.keys(exportEntry).length < 3;
+
+      if (isStrangeExport) {
         console.warn(
           `⚠️  Strange export entry for ${exportPath} (probably bad import in source code):`,
           exportEntry,
         );
+        if (config.omitStrangeExportEntries) {
+          continue;
+        }
       }
 
       exports[exportPath] = exportEntry;
@@ -187,7 +198,9 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
 
     distConfigs.syncConfigs();
 
-    console.log(`✅ Generated exports for ${moduleNames.size} modules`);
+    console.log(
+      `✅ Generated exports for ${Object.keys(exports).length} path(s) (scanned ${moduleNames.size} dist module(s))`,
+    );
     console.log('✅ Updated dist/package.json\n');
   } catch (error) {
     console.error('❌ Failed to prepare dist package:', error);
