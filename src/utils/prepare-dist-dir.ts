@@ -1,4 +1,5 @@
-import { copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import { ConfigsManager } from './configs-manager.js';
 
 /** По умолчанию не публикуем в exports внутренние чанки Vite/Rollup (`chunk-…`). */
@@ -20,8 +21,104 @@ function findMatchingGlobPattern(
   return patterns.find((p) => globPatternToRegExp(p).test(moduleName));
 }
 
+export interface DistExtraFileEntry {
+  /**
+   * Исходный файл. Разрешается через `path.resolve(resolveBase, from)`,
+   * где `resolveBase` = `path.resolve(cwd, distExtraFilesResolveBase ?? '.')`.
+   */
+  from: string;
+  /** Путь назначения внутри каталога сборки (по умолчанию — basename из `from`). */
+  to?: string;
+}
+
+/** Собирает операции копирования для {@link PrepareDistDirConfig.distExtraFiles} и root+names. */
+export function buildDistExtraCopyOperations(
+  config: Pick<
+    PrepareDistDirConfig,
+    | 'distExtraFiles'
+    | 'distExtraFilesRoot'
+    | 'distExtraFilesNames'
+    | 'distExtraFilesResolveBase'
+  >,
+  cwd: string = process.cwd(),
+): { absFrom: string; to: string }[] {
+  const hasList = (config.distExtraFiles?.length ?? 0) > 0;
+  const hasRootPair =
+    config.distExtraFilesRoot != null &&
+    config.distExtraFilesRoot !== '' &&
+    (config.distExtraFilesNames?.length ?? 0) > 0;
+  if (!hasList && !hasRootPair) {
+    return [];
+  }
+
+  const resolveBase = path.resolve(
+    cwd,
+    config.distExtraFilesResolveBase ?? '.',
+  );
+  const ops: { absFrom: string; to: string }[] = [];
+
+  for (const entry of config.distExtraFiles ?? []) {
+    const absFrom = path.resolve(resolveBase, entry.from);
+    const to = entry.to ?? path.basename(absFrom);
+    ops.push({ absFrom, to });
+  }
+
+  if (hasRootPair) {
+    const root = path.resolve(resolveBase, config.distExtraFilesRoot!);
+    for (const name of config.distExtraFilesNames!) {
+      const absFrom = path.resolve(root, name);
+      ops.push({ absFrom, to: name });
+    }
+  }
+
+  return ops;
+}
+
+function copyDistExtraFiles(
+  config: PrepareDistDirConfig,
+  distDir: string,
+  cwd: string,
+) {
+  const extraCopies = buildDistExtraCopyOperations(config, cwd);
+  for (const { absFrom, to } of extraCopies) {
+    const dest = path.join(distDir, to);
+    if (!existsSync(absFrom)) {
+      const msg = `⚠️  dist extra file not found, skipping: ${absFrom}`;
+      if (config.distExtraFilesFailOnMissing) {
+        throw new Error(msg);
+      }
+      console.warn(msg);
+      continue;
+    }
+    mkdirSync(path.dirname(dest), { recursive: true });
+    copyFileSync(absFrom, dest);
+    console.log(
+      `📄 Copied (dist extra) ${absFrom} → dist/${to.split(path.sep).join('/')}`,
+    );
+  }
+}
+
 export interface PrepareDistDirConfig {
   extraFilesToCopy?: string[];
+  /**
+   * Явное копирование файлов в каталог публикации (например LICENSE/README из корня монорепо).
+   * Без этой опции по-прежнему ищутся только `LICENSE` и `README.md` рядом с пакетом (cwd).
+   */
+  distExtraFiles?: DistExtraFileEntry[];
+  /**
+   * База для разрешения путей `distExtraFiles[].from` и `distExtraFilesRoot`.
+   * Относительные значения считаются от `process.cwd()` (обычно корень пакета при `vite build`).
+   */
+  distExtraFilesResolveBase?: string;
+  /** Каталог относительно {@link distExtraFilesResolveBase} (или cwd, если не задан); вместе с {@link distExtraFilesNames}. */
+  distExtraFilesRoot?: string;
+  /** Имена файлов относительно {@link distExtraFilesRoot}. */
+  distExtraFilesNames?: string[];
+  /**
+   * Если `true`, отсутствие любого файла из набора dist extra прерывает подготовку dist.
+   * @default false — только предупреждение с абсолютным путём.
+   */
+  distExtraFilesFailOnMissing?: boolean;
   binPath?: string;
   configs: ConfigsManager;
   ignoredModuleNamesForExport?: string[];
@@ -62,6 +159,9 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
         console.warn(`⚠️  ${file} not found, skipping`);
       }
     }
+
+    const distDir = path.resolve(process.cwd(), 'dist');
+    copyDistExtraFiles(config, distDir, process.cwd());
 
     const distConfigs = ConfigsManager.create('./dist');
 
