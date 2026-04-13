@@ -44,24 +44,29 @@ export const ensureGitTag = ({
   logger?: LoggerLike;
 }) => {
   const localTagExists = git.hasLocalTag(tagName);
-
-  if (localTagExists) {
-    logger.info(`[github-releases] tag ${tagName}: skipped (already local)`);
-    return 'skipped';
-  }
-
   const remoteTagExists = git.hasRemoteTag('origin', tagName);
 
   if (remoteTagExists) {
-    logger.info(
-      `[github-releases] tag ${tagName}: skipped (already on origin)`,
-    );
+    if (localTagExists) {
+      logger.info(
+        `[github-releases] tag ${tagName}: skipped (already local and on origin)`,
+      );
+    } else {
+      logger.info(
+        `[github-releases] tag ${tagName}: skipped (already on origin)`,
+      );
+    }
     return 'skipped';
   }
 
-  git.createTagAtHead(tagName);
+  if (!localTagExists) {
+    git.createTagAtHead(tagName);
+  }
+
   git.pushTag('origin', tagName);
-  logger.info(`[github-releases] tag ${tagName}: created`);
+  logger.info(
+    `[github-releases] tag ${tagName}: created${localTagExists ? ' (pushed existing local tag)' : ''}`,
+  );
   return 'created';
 };
 

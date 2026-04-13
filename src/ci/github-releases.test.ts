@@ -29,6 +29,7 @@ describe('github releases helpers', () => {
     const git = createGitMock();
     const logger = { info: vi.fn(), warn: vi.fn() };
     vi.mocked(git.hasLocalTag).mockReturnValue(true);
+    vi.mocked(git.hasRemoteTag).mockReturnValue(true);
 
     const result = ensureGitTag({
       git,
@@ -37,9 +38,26 @@ describe('github releases helpers', () => {
     });
 
     expect(result).toBe('skipped');
-    expect(git.hasRemoteTag).not.toHaveBeenCalled();
+    expect(git.hasRemoteTag).toHaveBeenCalledWith('origin', '@scope/pkg@1.2.3');
     expect(git.createTagAtHead).not.toHaveBeenCalled();
     expect(git.pushTag).not.toHaveBeenCalled();
+  });
+
+  it('pushes existing local tag when remote tag is missing', () => {
+    const git = createGitMock();
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    vi.mocked(git.hasLocalTag).mockReturnValue(true);
+    vi.mocked(git.hasRemoteTag).mockReturnValue(false);
+
+    const result = ensureGitTag({
+      git,
+      tagName: '@scope/pkg@1.2.3',
+      logger,
+    });
+
+    expect(result).toBe('created');
+    expect(git.createTagAtHead).not.toHaveBeenCalled();
+    expect(git.pushTag).toHaveBeenCalledWith('origin', '@scope/pkg@1.2.3');
   });
 
   it('skips release creation when release already exists', async () => {
