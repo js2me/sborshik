@@ -43,6 +43,45 @@ defineLibViteConfig(configs, {
 
 Копирование выполняется после артефактов сборки, сразу после стандартного копирования `LICENSE` / `README.md` / `package.json` из каталога пакета, до обновления `dist/package.json`.
 
+## Документация без `docs/.vitepress` и `docs/vite.config.ts`
+
+Теперь можно держать только один конфиг в корне проекта: `sborshik.config.ts`.
+
+```ts
+import { defineSborshikConfig } from 'sborshik';
+
+export default defineSborshikConfig({
+  docs: {
+    sourceDir: 'docs',
+    outDir: 'docs-dist',
+    createdYear: '2026',
+    theme: {
+      palette: {
+        brand1: '#5d8eff',
+        brand2: '#3e75f3',
+        brand3: '#315ae6',
+        brandSoft: '#e4e9ffa8',
+      },
+    },
+    themeConfig: {
+      nav: [
+        { text: 'Home', link: '/' },
+        { text: 'Guide', link: '/guide/getting-started' },
+      ],
+    },
+  },
+});
+```
+
+Команды:
+
+```bash
+sborshik docs dev
+sborshik docs build
+```
+
+По умолчанию исходники берутся из `docs`, а результат сборки попадает в `docs-dist`.
+
 ## CLI: `sborshik ci`
 
 Команда для CI-публикации пакетов монорепозитория через Changesets:

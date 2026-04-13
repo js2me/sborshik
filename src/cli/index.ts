@@ -2,6 +2,7 @@
 
 import { cac } from 'cac';
 import path from 'path';
+import { build as vitepressBuild, createServer as createVitepressServer } from 'vitepress';
 import { createGithubArtifactsForPublishedPackages } from '../ci/github-releases.js';
 import {
   createGithubApiClient,
@@ -11,6 +12,8 @@ import {
   runChangesetPublish,
 } from '../ci/publish-ci.js';
 import { getInfoFromChangelog } from '../get-info-from-changelog.js';
+import { createDocsRuntimeProject } from '../docs/docs-runtime.js';
+import { loadSborshikConfig } from '../docs/load-sborshik-config.js';
 import { postBuildScript } from '../post-build-script.js';
 import { publishGhRelease } from '../publish-gh-release.js';
 import { publishScript } from '../publish-script.js';
@@ -18,6 +21,24 @@ import { $ } from '../utils/fs.js';
 import { PackageJsonManager } from '../utils/package-json-manager.js';
 
 const cli = cac('sborshik');
+
+const getDocsConfigOrThrow = async (rootDir: string) => {
+  const loadedSborshikConfig = await loadSborshikConfig(rootDir);
+
+  if (!loadedSborshikConfig) {
+    throw new Error(
+      'Не найден sborshik.config.ts в корне проекта. Создай файл с секцией docs.',
+    );
+  }
+
+  if (!loadedSborshikConfig.config.docs) {
+    throw new Error(
+      `В конфиге ${path.basename(loadedSborshikConfig.configPath)} отсутствует секция docs.`,
+    );
+  }
+
+  return loadedSborshikConfig.config.docs;
+};
 
 const fillDistAction = ({
   useBuildDirForExportsMap,
@@ -129,6 +150,66 @@ cli
   .option('--useBuildDirForExportsMap', '')
   .action(({ useBuildDirForExportsMap }) => {
     fillDistAction({ useBuildDirForExportsMap });
+  });
+
+cli
+  .command('docs build', 'Build docs from sborshik.config.ts')
+  .option('--root <root>', 'Project root')
+  .action(async (options) => {
+    const rootDir = path.resolve(process.cwd(), options.root || '.');
+    const docsConfig = await getDocsConfigOrThrow(rootDir);
+    const runtime = createDocsRuntimeProject({
+      rootDir,
+      docsConfig,
+    });
+
+    try {
+      await vitepressBuild(runtime.runtimeRoot);
+    } finally {
+      runtime.cleanup();
+    }
+  });
+
+cli
+  .command('docs dev', 'Start docs dev server from sborshik.config.ts')
+  .option('--root <root>', 'Project root')
+  .option('--port <port>', 'Port for VitePress dev server')
+  .option('--host <host>', 'Host for VitePress dev server')
+  .action(async (options) => {
+    const rootDir = path.resolve(process.cwd(), options.root || '.');
+    const docsConfig = await getDocsConfigOrThrow(rootDir);
+    const runtime = createDocsRuntimeProject({
+      rootDir,
+      docsConfig,
+    });
+
+    const server = await createVitepressServer(runtime.runtimeRoot, {
+      ...(options.port ? { port: Number(options.port) } : {}),
+      ...(options.host ? { host: options.host } : {}),
+    });
+
+    const gracefulExit = async (code: number) => {
+      await server.close();
+      runtime.cleanup();
+      process.exit(code);
+    };
+
+    process.on('SIGINT', () => {
+      void gracefulExit(0);
+    });
+
+    process.on('SIGTERM', () => {
+      void gracefulExit(0);
+    });
+
+    try {
+      await server.listen();
+      server.printUrls();
+      server.bindCLIShortcuts({ print: true });
+    } catch (error) {
+      await gracefulExit(1);
+      throw error;
+    }
   });
 
 cli
