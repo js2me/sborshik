@@ -2,6 +2,14 @@
 
 import { cac } from 'cac';
 import path from 'path';
+import { createGithubArtifactsForPublishedPackages } from '../ci/github-releases.js';
+import {
+  createGithubApiClient,
+  createGitRunner,
+  parseGithubRepoFromRemoteUrl,
+  parsePublishedPackagesFromChangesetPublishOutput,
+  runChangesetPublish,
+} from '../ci/publish-ci.js';
 import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 import { postBuildScript } from '../post-build-script.js';
 import { publishGhRelease } from '../publish-gh-release.js';
@@ -121,6 +129,59 @@ cli
   .option('--useBuildDirForExportsMap', '')
   .action(({ useBuildDirForExportsMap }) => {
     fillDistAction({ useBuildDirForExportsMap });
+  });
+
+cli
+  .command('ci', 'Publish monorepo packages via Changesets')
+  .option(
+    '--github-releases',
+    'Create Git tags and GitHub Releases for published packages',
+  )
+  .option('--create-github-releases', 'Alias for --github-releases')
+  .action(async (options) => {
+    const publishOutput = runChangesetPublish();
+    const publishedPackages =
+      parsePublishedPackagesFromChangesetPublishOutput(publishOutput);
+
+    const shouldCreateGithubReleases =
+      options.githubReleases || options.createGithubReleases;
+
+    if (!shouldCreateGithubReleases) {
+      return;
+    }
+
+    if (publishedPackages.length === 0) {
+      console.info(
+        '[github-releases] skip: no packages were published in this run',
+      );
+      return;
+    }
+
+    if (!process.env.GITHUB_TOKEN) {
+      console.warn(
+        '[github-releases] skip: GITHUB_TOKEN is required for --github-releases',
+      );
+      return;
+    }
+
+    const remoteUrl = createGitRunner().getRemoteUrl('origin');
+    const githubRepoData = parseGithubRepoFromRemoteUrl(remoteUrl);
+
+    if (!githubRepoData) {
+      throw new Error(
+        `Не удалось определить owner/repo из origin remote: ${remoteUrl}`,
+      );
+    }
+
+    await createGithubArtifactsForPublishedPackages({
+      git: createGitRunner(),
+      github: createGithubApiClient({
+        authToken: process.env.GITHUB_TOKEN,
+      }),
+      owner: githubRepoData.owner,
+      repo: githubRepoData.repo,
+      publishedPackages,
+    });
   });
 
 cli

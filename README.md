@@ -42,3 +42,43 @@ defineLibViteConfig(configs, {
 ```
 
 Копирование выполняется после артефактов сборки, сразу после стандартного копирования `LICENSE` / `README.md` / `package.json` из каталога пакета, до обновления `dist/package.json`.
+
+## CLI: `sborshik ci`
+
+Команда для CI-публикации пакетов монорепозитория через Changesets:
+
+```bash
+sborshik ci
+```
+
+### GitHub tags and releases
+
+После успешной публикации можно автоматически создавать git-теги и GitHub Releases только для пакетов, опубликованных в текущем запуске:
+
+```bash
+sborshik ci --github-releases
+```
+
+Поддерживается алиас:
+
+```bash
+sborshik ci --create-github-releases
+```
+
+Что делает флаг:
+
+- формирует тег `${packageName}@${version}` для каждого опубликованного пакета;
+- если тег уже есть локально или в `origin`, пишет `skipped`;
+- если тега нет, создает и пушит его;
+- проверяет GitHub Release по тегу;
+- если релиз уже существует, пишет `skipped`;
+- если релиза нет, создает release с:
+  - `title = tagName`
+  - `generate_release_notes = true`
+  - `make_latest = false`
+
+### Required environment
+
+- `GITHUB_TOKEN` — обязателен только при использовании `--github-releases` / `--create-github-releases`.
+
+Если флаг не передан, поведение `sborshik ci` не изменяется.
