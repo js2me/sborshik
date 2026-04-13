@@ -23,6 +23,7 @@ import { publishGhRelease } from '../publish-gh-release.js';
 import { publishScript } from '../publish-script.js';
 import { $ } from '../utils/fs.js';
 import { PackageJsonManager } from '../utils/package-json-manager.js';
+import { rewritePackagePathsInDistPackageJson } from '../utils/rewrite-package-paths.js';
 
 const cli = cac('sborshik');
 
@@ -280,6 +281,10 @@ cli
   .command('publish')
   .option('--useDistDir', 'Make publish from dist directory')
   .option(
+    '--rewrite-package-paths',
+    'Rewrite dist/package.json main/module/types/exports paths for dist publish',
+  )
+  .option(
     '--cleanupCommand <cleanupCommand>',
     'Name of the Cleanup command (pnpm run <cleanupCommand>)',
   )
@@ -291,6 +296,15 @@ cli
     const pckgJson = new PackageJsonManager(
       path.join(process.cwd(), './package.json'),
     );
+    const useDistDir = 'useDistDir' in options;
+    const shouldRewritePackagePaths =
+      useDistDir && 'rewritePackagePaths' in options;
+
+    if (shouldRewritePackagePaths) {
+      rewritePackagePathsInDistPackageJson(
+        path.resolve(process.cwd(), './dist/package.json'),
+      );
+    }
 
     const publishOutput = publishScript({
       gitTagFormat: '<tag>',
@@ -305,7 +319,7 @@ cli
       cleanupCommand: `pnpm ${options.cleanupCommand ?? 'clean'}`,
       targetPackageJson: pckgJson,
       mainBranch: options.branch ?? 'master',
-      stayInCurrentDir: 'useDistDir' in options ? false : true,
+      stayInCurrentDir: useDistDir ? false : true,
     });
 
     if (process.env.CI) {

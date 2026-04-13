@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { ConfigsManager } from './configs-manager.js';
+import { rewritePackagePathsInObject } from './rewrite-package-paths.js';
 
 /** По умолчанию не публикуем в exports внутренние чанки Vite/Rollup (`chunk-…`). */
 const DEFAULT_IGNORED_MODULE_NAME_GLOB_PATTERNS = ['chunk-*'];
@@ -98,6 +99,16 @@ function copyDistExtraFiles(
   }
 }
 
+const applyRewritePackagePathsIfNeeded = (
+  config: Pick<PrepareDistDirConfig, 'rewritePackagePaths'>,
+  packageJson: Record<string, unknown>,
+  distDir: string,
+) => {
+  if (config.rewritePackagePaths) {
+    rewritePackagePathsInObject(packageJson, distDir);
+  }
+};
+
 export interface PrepareDistDirConfig {
   extraFilesToCopy?: string[];
   /**
@@ -135,6 +146,12 @@ export interface PrepareDistDirConfig {
    * Предупреждение в консоль при этом всё равно выводится.
    */
   omitStrangeExportEntries?: boolean;
+  /**
+   * Переписывает пути в `main`/`module`/`types` и `exports` так,
+   * чтобы они были валидны относительно корня `dist`-пакета.
+   * Полезно, когда исходный `package.json` содержит `./dist/*` или `./src/*`.
+   */
+  rewritePackagePaths?: boolean;
 }
 
 export const prepareDistDir = async (config: PrepareDistDirConfig) => {
@@ -295,6 +312,8 @@ export const prepareDistDir = async (config: PrepareDistDirConfig) => {
     // Удаляем ненужные поля для публикации
     delete distConfigs.package.scripts;
     delete distConfigs.package.devDependencies;
+
+    applyRewritePackagePathsIfNeeded(config, distConfigs.package, distDir);
 
     distConfigs.syncConfigs();
 

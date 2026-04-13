@@ -7,6 +7,7 @@ import { publishGhRelease } from '../publish-gh-release.js';
 import { publishScript } from '../publish-script.js';
 import { $ } from '../utils/index.js';
 import { PackageJsonManager } from '../utils/package-json-manager.js';
+import { rewritePackagePathsInDistPackageJson } from '../utils/rewrite-package-paths.js';
 
 if (!process.env.CI) {
   $('pnpm changeset version');
@@ -17,6 +18,14 @@ const pckgJson = new PackageJsonManager(
 );
 
 const options = cac().parse().options;
+const useDistDir = 'useDistDir' in options;
+const shouldRewritePackagePaths = useDistDir && 'rewritePackagePaths' in options;
+
+if (shouldRewritePackagePaths) {
+  rewritePackagePathsInDistPackageJson(
+    path.resolve(process.cwd(), './dist/package.json'),
+  );
+}
 
 const publishOutput = publishScript({
   gitTagFormat: '<tag>',
@@ -31,7 +40,7 @@ const publishOutput = publishScript({
   cleanupCommand: `pnpm ${options.cleanupCommand ?? 'clean'}`,
   targetPackageJson: pckgJson,
   mainBranch: options.branch ?? 'master',
-  stayInCurrentDir: 'useDistDir' in options ? false : true,
+  stayInCurrentDir: useDistDir ? false : true,
 });
 
 if (process.env.CI) {
