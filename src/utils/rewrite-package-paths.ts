@@ -146,7 +146,11 @@ export const rewritePackagePathsInObject = (
   };
 
   if (typeof packageJson.main === 'string') {
-    packageJson.main = rewritePathLikeValue('' + packageJson.main, 'main', context);
+    packageJson.main = rewritePathLikeValue(
+      '' + packageJson.main,
+      'main',
+      context,
+    );
   }
 
   if (typeof packageJson.module === 'string') {

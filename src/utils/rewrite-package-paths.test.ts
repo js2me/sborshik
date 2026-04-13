@@ -139,7 +139,9 @@ describe('rewritePackagePathsInDistPackageJson', () => {
   });
 
   it('rewrites paths in plain object for vite dist preparation', () => {
-    const tempRootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sborshik-rewrite-'));
+    const tempRootDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'sborshik-rewrite-'),
+    );
     const distDir = path.join(tempRootDir, 'dist');
     fs.mkdirSync(path.join(distDir, 'react'), { recursive: true });
 

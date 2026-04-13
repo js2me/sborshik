@@ -19,7 +19,8 @@ const pckgJson = new PackageJsonManager(
 
 const options = cac().parse().options;
 const useDistDir = 'useDistDir' in options;
-const shouldRewritePackagePaths = useDistDir && 'rewritePackagePaths' in options;
+const shouldRewritePackagePaths =
+  useDistDir && 'rewritePackagePaths' in options;
 
 if (shouldRewritePackagePaths) {
   rewritePackagePathsInDistPackageJson(
