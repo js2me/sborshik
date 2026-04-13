@@ -3,6 +3,11 @@ export interface PublishedPackage {
   version: string;
 }
 
+export interface PublishedPackageWithReleaseNotes extends PublishedPackage {
+  releaseNotes: string;
+  tagMessage: string;
+}
+
 export interface LoggerLike {
   info: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
@@ -11,7 +16,7 @@ export interface LoggerLike {
 export interface GitRunner {
   hasLocalTag: (tagName: string) => boolean;
   hasRemoteTag: (remote: string, tagName: string) => boolean;
-  createTagAtHead: (tagName: string) => void;
+  createTagAtHead: (tagName: string, message?: string) => void;
   pushTag: (remote: string, tagName: string) => void;
 }
 
@@ -26,7 +31,7 @@ export interface GithubClient {
     repo: string;
     tagName: string;
     title: string;
-    generateReleaseNotes: boolean;
+    body: string;
     makeLatest: 'false' | 'legacy' | 'true';
   }) => Promise<void>;
 }
@@ -37,10 +42,12 @@ export const buildPackageTagName = (packageName: string, version: string) =>
 export const ensureGitTag = ({
   git,
   tagName,
+  tagMessage,
   logger = console,
 }: {
   git: GitRunner;
   tagName: string;
+  tagMessage?: string;
   logger?: LoggerLike;
 }) => {
   const localTagExists = git.hasLocalTag(tagName);
@@ -60,7 +67,7 @@ export const ensureGitTag = ({
   }
 
   if (!localTagExists) {
-    git.createTagAtHead(tagName);
+    git.createTagAtHead(tagName, tagMessage);
   }
 
   git.pushTag('origin', tagName);
@@ -75,12 +82,14 @@ export const ensureGithubRelease = async ({
   owner,
   repo,
   tagName,
+  releaseNotes,
   logger = console,
 }: {
   github: GithubClient;
   owner: string;
   repo: string;
   tagName: string;
+  releaseNotes: string;
   logger?: LoggerLike;
 }) => {
   const releaseExists = await github.hasReleaseByTag({
@@ -101,7 +110,7 @@ export const ensureGithubRelease = async ({
     repo,
     tagName,
     title: tagName,
-    generateReleaseNotes: true,
+    body: releaseNotes,
     makeLatest: 'false',
   });
 
@@ -117,7 +126,7 @@ export const createGithubArtifactsForPublishedPackages = async ({
   repo,
   logger = console,
 }: {
-  publishedPackages: PublishedPackage[];
+  publishedPackages: PublishedPackageWithReleaseNotes[];
   git: GitRunner;
   github: GithubClient;
   owner: string;
@@ -130,12 +139,18 @@ export const createGithubArtifactsForPublishedPackages = async ({
       publishedPackage.version,
     );
 
-    ensureGitTag({ git, tagName, logger });
+    ensureGitTag({
+      git,
+      tagName,
+      tagMessage: publishedPackage.tagMessage,
+      logger,
+    });
     await ensureGithubRelease({
       github,
       owner,
       repo,
       tagName,
+      releaseNotes: publishedPackage.releaseNotes,
       logger,
     });
   }

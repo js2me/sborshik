@@ -70,6 +70,7 @@ describe('github releases helpers', () => {
       owner: 'owner',
       repo: 'repo',
       tagName: '@scope/pkg@1.2.3',
+      releaseNotes: 'notes',
       logger,
     });
 
@@ -88,8 +89,18 @@ describe('github releases helpers', () => {
 
     await createGithubArtifactsForPublishedPackages({
       publishedPackages: [
-        { name: '@scope/a', version: '1.0.0' },
-        { name: '@scope/b', version: '2.0.0' },
+        {
+          name: '@scope/a',
+          version: '1.0.0',
+          releaseNotes: 'notes-a',
+          tagMessage: 'tag-a',
+        },
+        {
+          name: '@scope/b',
+          version: '2.0.0',
+          releaseNotes: 'notes-b',
+          tagMessage: 'tag-b',
+        },
       ],
       git,
       github,
@@ -103,13 +114,25 @@ describe('github releases helpers', () => {
       1,
       expect.objectContaining({
         tagName: '@scope/a@1.0.0',
+        body: 'notes-a',
       }),
     );
     expect(github.createRelease).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         tagName: '@scope/b@2.0.0',
+        body: 'notes-b',
       }),
+    );
+    expect(git.createTagAtHead).toHaveBeenNthCalledWith(
+      1,
+      '@scope/a@1.0.0',
+      'tag-a',
+    );
+    expect(git.createTagAtHead).toHaveBeenNthCalledWith(
+      2,
+      '@scope/b@2.0.0',
+      'tag-b',
     );
   });
 });

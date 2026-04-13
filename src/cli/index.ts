@@ -5,6 +5,7 @@ import path from 'path';
 import { build as vitepressBuild, createServer as createVitepressServer } from 'vitepress';
 import { createGithubArtifactsForPublishedPackages } from '../ci/github-releases.js';
 import {
+  buildPublishedPackagesWithReleaseNotes,
   createGithubApiClient,
   createGitRunner,
   parseGithubRepoFromRemoteUrl,
@@ -254,6 +255,13 @@ cli
       );
     }
 
+    const repoUrl = `https://github.com/${githubRepoData.owner}/${githubRepoData.repo}`;
+    const publishedPackagesWithReleaseNotes =
+      buildPublishedPackagesWithReleaseNotes({
+        publishedPackages,
+        repoUrl,
+      });
+
     await createGithubArtifactsForPublishedPackages({
       git: createGitRunner(),
       github: createGithubApiClient({
@@ -261,7 +269,7 @@ cli
       }),
       owner: githubRepoData.owner,
       repo: githubRepoData.repo,
-      publishedPackages,
+      publishedPackages: publishedPackagesWithReleaseNotes,
     });
   });
 

@@ -107,13 +107,14 @@ sborshik ci --create-github-releases
 Что делает флаг:
 
 - формирует тег `${packageName}@${version}` для каждого опубликованного пакета;
+- берет текст релиза из `CHANGELOG.md` соответствующего пакета;
 - если тег уже есть локально или в `origin`, пишет `skipped`;
-- если тега нет, создает и пушит его;
+- если тега нет, создает **annotated tag** и пушит его;
 - проверяет GitHub Release по тегу;
 - если релиз уже существует, пишет `skipped`;
 - если релиза нет, создает release с:
   - `title = tagName`
-  - `generate_release_notes = true`
+  - `body = section from CHANGELOG.md`
   - `make_latest = false`
 
 ### Required environment

@@ -1,9 +1,13 @@
 import cp from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import type {
   GithubClient,
   GitRunner,
   PublishedPackage,
+  PublishedPackageWithReleaseNotes,
 } from './github-releases.js';
+import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 
 const runCommand = ({
   command,
@@ -89,6 +93,104 @@ export const parsePublishedPackagesFromChangesetPublishOutput = (
   return [...found.values()];
 };
 
+const IGNORED_PACKAGE_SCAN_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'coverage',
+]);
+
+const findPackageJsonPathByName = ({
+  rootDir,
+  packageName,
+}: {
+  rootDir: string;
+  packageName: string;
+}): null | string => {
+  const queue = [rootDir];
+
+  while (queue.length > 0) {
+    const currentDir = queue.shift();
+
+    if (!currentDir) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(currentDir, {
+      withFileTypes: true,
+    });
+
+    for (const entry of entries) {
+      if (entry.name === 'package.json' && entry.isFile()) {
+        const packageJsonPath = path.join(currentDir, entry.name);
+        const packageJson = JSON.parse(
+          fs.readFileSync(packageJsonPath, 'utf8'),
+        ) as { name?: string };
+
+        if (packageJson.name === packageName) {
+          return packageJsonPath;
+        }
+      }
+
+      if (entry.isDirectory() && !IGNORED_PACKAGE_SCAN_DIRS.has(entry.name)) {
+        queue.push(path.join(currentDir, entry.name));
+      }
+    }
+  }
+
+  return null;
+};
+
+export const buildPublishedPackagesWithReleaseNotes = ({
+  publishedPackages,
+  repoUrl,
+  rootDir = process.cwd(),
+}: {
+  publishedPackages: PublishedPackage[];
+  repoUrl: string;
+  rootDir?: string;
+}): PublishedPackageWithReleaseNotes[] =>
+  publishedPackages.map((publishedPackage) => {
+    const packageJsonPath = findPackageJsonPathByName({
+      rootDir,
+      packageName: publishedPackage.name,
+    });
+
+    if (!packageJsonPath) {
+      throw new Error(
+        `Не найден package.json для опубликованного пакета ${publishedPackage.name}`,
+      );
+    }
+
+    const changelogPath = path.join(path.dirname(packageJsonPath), 'CHANGELOG.md');
+
+    if (!fs.existsSync(changelogPath)) {
+      throw new Error(
+        `Не найден CHANGELOG.md для пакета ${publishedPackage.name} по пути ${changelogPath}`,
+      );
+    }
+
+    const { whatChangesText } = getInfoFromChangelog(
+      publishedPackage.version,
+      changelogPath,
+      repoUrl,
+    );
+
+    if (!whatChangesText.trim()) {
+      throw new Error(
+        `В CHANGELOG.md не найдены изменения для версии ${publishedPackage.version} пакета ${publishedPackage.name}`,
+      );
+    }
+
+    const tagName = `${publishedPackage.name}@${publishedPackage.version}`;
+
+    return {
+      ...publishedPackage,
+      releaseNotes: whatChangesText,
+      tagMessage: `[Release] ${tagName}\n\n${whatChangesText}`,
+    };
+  });
+
 const normalizeRepository = (repository: string) => {
   if (repository.endsWith('.git')) {
     return repository.slice(0, -4);
@@ -147,7 +249,15 @@ export const createGitRunner = (): GitRunner & {
     });
     return Boolean(result.stdout.trim());
   },
-  createTagAtHead: (tagName) => {
+  createTagAtHead: (tagName, message) => {
+    if (message?.trim()) {
+      runCommand({
+        command: 'git',
+        args: ['tag', '-a', tagName, '-m', message],
+      });
+      return;
+    }
+
     runCommand({
       command: 'git',
       args: ['tag', tagName],
@@ -205,14 +315,7 @@ export const createGithubApiClient = ({
 
       return true;
     },
-    createRelease: async ({
-      owner,
-      repo,
-      tagName,
-      title,
-      generateReleaseNotes,
-      makeLatest,
-    }) => {
+    createRelease: async ({ owner, repo, tagName, title, body, makeLatest }) => {
       const response = await request(
         `https://api.github.com/repos/${owner}/${repo}/releases`,
         {
@@ -220,7 +323,8 @@ export const createGithubApiClient = ({
           body: JSON.stringify({
             tag_name: tagName,
             name: title,
-            generate_release_notes: generateReleaseNotes,
+            body,
+            generate_release_notes: false,
             make_latest: makeLatest,
           }),
         },
