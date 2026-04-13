@@ -2,7 +2,10 @@
 
 import { cac } from 'cac';
 import path from 'path';
-import { build as vitepressBuild, createServer as createVitepressServer } from 'vitepress';
+import {
+  createServer as createVitepressServer,
+  build as vitepressBuild,
+} from 'vitepress';
 import { createGithubArtifactsForPublishedPackages } from '../ci/github-releases.js';
 import {
   buildPublishedPackagesWithReleaseNotes,
@@ -12,9 +15,9 @@ import {
   parsePublishedPackagesFromChangesetPublishOutput,
   runChangesetPublish,
 } from '../ci/publish-ci.js';
-import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 import { createDocsRuntimeProject } from '../docs/docs-runtime.js';
 import { loadSborshikConfig } from '../docs/load-sborshik-config.js';
+import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 import { postBuildScript } from '../post-build-script.js';
 import { publishGhRelease } from '../publish-gh-release.js';
 import { publishScript } from '../publish-script.js';

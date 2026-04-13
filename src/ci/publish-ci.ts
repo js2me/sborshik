@@ -1,13 +1,13 @@
 import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 import type {
   GithubClient,
   GitRunner,
   PublishedPackage,
   PublishedPackageWithReleaseNotes,
 } from './github-releases.js';
-import { getInfoFromChangelog } from '../get-info-from-changelog.js';
 
 const runCommand = ({
   command,
@@ -162,7 +162,10 @@ export const buildPublishedPackagesWithReleaseNotes = ({
       );
     }
 
-    const changelogPath = path.join(path.dirname(packageJsonPath), 'CHANGELOG.md');
+    const changelogPath = path.join(
+      path.dirname(packageJsonPath),
+      'CHANGELOG.md',
+    );
 
     if (!fs.existsSync(changelogPath)) {
       throw new Error(
@@ -315,7 +318,14 @@ export const createGithubApiClient = ({
 
       return true;
     },
-    createRelease: async ({ owner, repo, tagName, title, body, makeLatest }) => {
+    createRelease: async ({
+      owner,
+      repo,
+      tagName,
+      title,
+      body,
+      makeLatest,
+    }) => {
       const response = await request(
         `https://api.github.com/repos/${owner}/${repo}/releases`,
         {

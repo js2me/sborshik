@@ -1,4 +1,10 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { DefaultTheme, UserConfig } from 'vitepress';
@@ -92,7 +98,15 @@ const buildDocsVitepressConfig = ({
     metaChunk: true,
     head: [
       ['link', { rel: 'icon', href: `${base}logo.png` }],
-      ...(paletteStyle ? [['style', {}, paletteStyle] as [string, Record<string, string>, string]] : []),
+      ...(paletteStyle
+        ? [
+            ['style', {}, paletteStyle] as [
+              string,
+              Record<string, string>,
+              string,
+            ],
+          ]
+        : []),
       ...(docsConfig.head || []),
     ],
     themeConfig: {

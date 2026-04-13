@@ -17,7 +17,11 @@ const createTmpDir = () => {
 
 afterEach(async () => {
   const { rm } = await import('node:fs/promises');
-  await Promise.all(createdDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  await Promise.all(
+    createdDirs
+      .splice(0)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
+  );
 });
 
 describe('load sborshik config', () => {

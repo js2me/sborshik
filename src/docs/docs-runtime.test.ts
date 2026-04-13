@@ -8,7 +8,11 @@ import { createDocsRuntimeProject } from './docs-runtime.js';
 const createdDirs: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(createdDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  await Promise.all(
+    createdDirs
+      .splice(0)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
+  );
 });
 
 const createFixtureRoot = async () => {
