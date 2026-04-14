@@ -1,5 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path, { resolve } from 'node:path';
+import ts from 'typescript';
 
 interface EntryItem {
   /**
@@ -15,6 +17,8 @@ interface EntryItem {
    */
   entryPath: string;
 }
+
+const require = createRequire(import.meta.url);
 
 export class ConfigsManager {
   rootPath: string;
@@ -67,7 +71,8 @@ export class ConfigsManager {
   }
 
   get entries(): EntryItem[] {
-    if (!this.tsconfig.compilerOptions.paths) {
+    const aliases = this.pathAliasesFromTsConfig;
+    if (!Object.keys(aliases).length) {
       return [
         {
           importName: this.package.name,
@@ -77,7 +82,7 @@ export class ConfigsManager {
       ];
     }
 
-    return Object.entries(this.tsconfig.compilerOptions.paths).map(
+    return Object.entries(aliases).map(
       ([importName, paths]): EntryItem => {
         const entryPath = (paths as string[])?.[0];
         const entryName = entryPath
@@ -119,7 +124,20 @@ export class ConfigsManager {
   }
 
   readJson(path: string) {
-    return JSON.parse(readFileSync(resolve(this.rootPath, path)).toString());
+    const filePath = resolve(this.rootPath, path);
+    const fileText = readFileSync(filePath, 'utf8');
+
+    try {
+      return JSON.parse(fileText);
+    } catch (_) {
+      const { config, error } = ts.parseConfigFileTextToJson(filePath, fileText);
+
+      if (error) {
+        throw new Error(ts.flattenDiagnosticMessageText(error.messageText, '\n'));
+      }
+
+      return config;
+    }
   }
 
   get externalDeps(): string[] {
@@ -193,10 +211,232 @@ export class ConfigsManager {
    * @ -> .tsconfig.compilerOptions.paths
    */
   get pathAliasesFromTsConfig(): Record<string, string[]> {
-    return (this.tsconfig.compilerOptions.paths || {}) as Record<
-      string,
-      string[]
-    >;
+    const tsconfigPath = resolve(this.tsconfigPath);
+    const aliases = this.resolveTsConfigAliases(tsconfigPath, new Set());
+    return aliases;
+  }
+
+  private resolveTsConfigAliases(
+    tsconfigPath: string,
+    visiting: Set<string>,
+    resolvedCache = new Map<string, Record<string, string[]>>(),
+  ): Record<string, string[]> {
+    if (resolvedCache.has(tsconfigPath)) {
+      return resolvedCache.get(tsconfigPath)!;
+    }
+
+    if (visiting.has(tsconfigPath)) {
+      this.warn(
+        `Detected tsconfig cycle while resolving aliases: ${tsconfigPath}. Skipping this branch.`,
+      );
+      return {};
+    }
+
+    visiting.add(tsconfigPath);
+    const tsconfig = this.readTsConfigFileSafe(tsconfigPath);
+
+    if (!tsconfig) {
+      visiting.delete(tsconfigPath);
+      resolvedCache.set(tsconfigPath, {});
+      return {};
+    }
+
+    const tsconfigDir = path.dirname(tsconfigPath);
+    const extendsPath = this.resolveExtendsPath(
+      tsconfigDir,
+      tsconfig.extends as string | undefined,
+    );
+    const aliasesFromExtends = extendsPath
+      ? this.resolveTsConfigAliases(extendsPath, visiting, resolvedCache)
+      : {};
+
+    const ownAliases = this.normalizePathsFromTsConfig(
+      tsconfig.compilerOptions?.paths,
+      tsconfigDir,
+    );
+    const hasOwnAliases = Object.keys(ownAliases).length > 0;
+
+    // Child config overrides parent config for extends chain.
+    let mergedAliases: Record<string, string[]> = {
+      ...aliasesFromExtends,
+      ...ownAliases,
+    };
+
+    // For references, we read deterministically in declared order and keep first value on collisions.
+    if (!hasOwnAliases && Array.isArray(tsconfig.references)) {
+      const aliasesFromReferences: Record<string, string[]> = {};
+
+      for (const reference of tsconfig.references) {
+        const referencedPathValue =
+          typeof reference?.path === 'string' ? reference.path : '';
+        if (!referencedPathValue) {
+          continue;
+        }
+
+        const referencedPath = this.resolveReferencePath(
+          tsconfigDir,
+          referencedPathValue,
+        );
+        if (!referencedPath) {
+          this.warn(
+            `Referenced tsconfig not found: "${referencedPathValue}" from ${tsconfigPath}. Skipping.`,
+          );
+          continue;
+        }
+
+        const refAliases = this.resolveTsConfigAliases(
+          referencedPath,
+          visiting,
+          resolvedCache,
+        );
+
+        for (const [alias, aliasPaths] of Object.entries(refAliases)) {
+          if (!(alias in aliasesFromReferences)) {
+            aliasesFromReferences[alias] = aliasPaths;
+          }
+        }
+      }
+
+      mergedAliases = {
+        ...aliasesFromReferences,
+        ...mergedAliases,
+      };
+    }
+
+    visiting.delete(tsconfigPath);
+    resolvedCache.set(tsconfigPath, mergedAliases);
+    return mergedAliases;
+  }
+
+  private readTsConfigFileSafe(tsconfigPath: string) {
+    if (!existsSync(tsconfigPath)) {
+      this.warn(`Tsconfig file does not exist: ${tsconfigPath}`);
+      return null;
+    }
+
+    try {
+      const source = readFileSync(tsconfigPath, 'utf8');
+      const { config, error } = ts.parseConfigFileTextToJson(tsconfigPath, source);
+
+      if (error || !config) {
+        this.warn(
+          `Failed to parse tsconfig: ${tsconfigPath}. ${
+            error
+              ? ts.flattenDiagnosticMessageText(error.messageText, '\n')
+              : 'Unknown parse error'
+          }`,
+        );
+        return null;
+      }
+
+      return config as Record<string, any>;
+    } catch (error) {
+      this.warn(`Failed to read tsconfig: ${tsconfigPath}`, error);
+      return null;
+    }
+  }
+
+  private normalizePathsFromTsConfig(
+    pathsConfig: unknown,
+    configDir: string,
+  ): Record<string, string[]> {
+    if (!pathsConfig || typeof pathsConfig !== 'object') {
+      return {};
+    }
+
+    const normalizedAliases: Record<string, string[]> = {};
+
+    for (const [alias, rawPaths] of Object.entries(pathsConfig)) {
+      if (!Array.isArray(rawPaths)) {
+        continue;
+      }
+
+      const values = rawPaths
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => this.toRootRelativePath(resolve(configDir, value)))
+        .filter(Boolean);
+
+      if (values.length) {
+        normalizedAliases[alias] = values;
+      }
+    }
+
+    return normalizedAliases;
+  }
+
+  private resolveExtendsPath(
+    tsconfigDir: string,
+    extendsValue?: string,
+  ): string | null {
+    if (!extendsValue) {
+      return null;
+    }
+
+    const relativeCandidate = this.resolveConfigPathFromValue(
+      tsconfigDir,
+      extendsValue,
+    );
+    if (relativeCandidate) {
+      return relativeCandidate;
+    }
+
+    try {
+      return require.resolve(extendsValue, { paths: [tsconfigDir] });
+    } catch (_) {
+      this.warn(
+        `Cannot resolve tsconfig "extends": "${extendsValue}" from ${tsconfigDir}. Skipping.`,
+      );
+      return null;
+    }
+  }
+
+  private resolveReferencePath(
+    tsconfigDir: string,
+    referencePath: string,
+  ): string | null {
+    return this.resolveConfigPathFromValue(tsconfigDir, referencePath);
+  }
+
+  private resolveConfigPathFromValue(
+    baseDir: string,
+    value: string,
+  ): string | null {
+    const absoluteValue = resolve(baseDir, value);
+    const candidates = [
+      absoluteValue,
+      `${absoluteValue}.json`,
+      resolve(absoluteValue, 'tsconfig.json'),
+    ];
+
+    for (const candidate of candidates) {
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private toRootRelativePath(absolutePath: string): string {
+    const relativePath = path.relative(this.rootPath, absolutePath);
+
+    if (!relativePath || relativePath === '.') {
+      return './';
+    }
+
+    if (relativePath.startsWith('.')) {
+      return relativePath;
+    }
+
+    return `./${relativePath}`;
+  }
+
+  private warn(message: string, error?: unknown) {
+    if (error) {
+      console.warn(`[sborshik] ${message}`, error);
+      return;
+    }
+    console.warn(`[sborshik] ${message}`);
   }
 
   static create(rootPath?: string, opts?: { tsconfigName?: string }) {
