@@ -82,22 +82,20 @@ export class ConfigsManager {
       ];
     }
 
-    return Object.entries(aliases).map(
-      ([importName, paths]): EntryItem => {
-        const entryPath = (paths as string[])?.[0];
-        const entryName = entryPath
-          .replace('/index.ts', '')
-          .replace('.tsx', '')
-          .replace('.ts', '')
-          .replace('./src/', '');
+    return Object.entries(aliases).map(([importName, paths]): EntryItem => {
+      const entryPath = (paths as string[])?.[0];
+      const entryName = entryPath
+        .replace('/index.ts', '')
+        .replace('.tsx', '')
+        .replace('.ts', '')
+        .replace('./src/', '');
 
-        return {
-          importName,
-          relativeName: entryName === './src' ? 'index' : entryName,
-          entryPath: resolve(this.rootPath, entryPath),
-        };
-      },
-    );
+      return {
+        importName,
+        relativeName: entryName === './src' ? 'index' : entryName,
+        entryPath: resolve(this.rootPath, entryPath),
+      };
+    });
   }
 
   refreshConfigs() {
@@ -130,10 +128,15 @@ export class ConfigsManager {
     try {
       return JSON.parse(fileText);
     } catch (_) {
-      const { config, error } = ts.parseConfigFileTextToJson(filePath, fileText);
+      const { config, error } = ts.parseConfigFileTextToJson(
+        filePath,
+        fileText,
+      );
 
       if (error) {
-        throw new Error(ts.flattenDiagnosticMessageText(error.messageText, '\n'));
+        throw new Error(
+          ts.flattenDiagnosticMessageText(error.messageText, '\n'),
+        );
       }
 
       return config;
@@ -316,7 +319,10 @@ export class ConfigsManager {
 
     try {
       const source = readFileSync(tsconfigPath, 'utf8');
-      const { config, error } = ts.parseConfigFileTextToJson(tsconfigPath, source);
+      const { config, error } = ts.parseConfigFileTextToJson(
+        tsconfigPath,
+        source,
+      );
 
       if (error || !config) {
         this.warn(

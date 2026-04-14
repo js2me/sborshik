@@ -111,8 +111,12 @@ describe('ConfigsManager.pathAliasesFromTsConfig', () => {
     const manager = createManager(rootDir);
     const aliases = manager.pathAliasesFromTsConfig;
 
-    expect(resolve(rootDir, aliases['@base/*'][0])).toBe(resolve(rootDir, 'base/*'));
-    expect(resolve(rootDir, aliases['@child/*'][0])).toBe(resolve(rootDir, 'child/*'));
+    expect(resolve(rootDir, aliases['@base/*'][0])).toBe(
+      resolve(rootDir, 'base/*'),
+    );
+    expect(resolve(rootDir, aliases['@child/*'][0])).toBe(
+      resolve(rootDir, 'child/*'),
+    );
     expect(resolve(rootDir, aliases['@shared/*'][0])).toBe(
       resolve(rootDir, 'child-shared/*'),
     );
@@ -123,7 +127,10 @@ describe('ConfigsManager.pathAliasesFromTsConfig', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     writeJson(resolve(rootDir, 'tsconfig.json'), {
-      references: [{ path: './missing-tsconfig' }, { path: './valid/tsconfig.json' }],
+      references: [
+        { path: './missing-tsconfig' },
+        { path: './valid/tsconfig.json' },
+      ],
     });
     writeJson(resolve(rootDir, 'valid/tsconfig.json'), {
       compilerOptions: {
