@@ -78,6 +78,27 @@ describe('github releases helpers', () => {
     expect(github.createRelease).not.toHaveBeenCalled();
   });
 
+  it('skips when API reports duplicate release (e.g. race after hasReleaseByTag)', async () => {
+    const github = createGithubMock();
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    vi.mocked(github.hasReleaseByTag).mockResolvedValue(false);
+    vi.mocked(github.createRelease).mockResolvedValue('skipped');
+
+    const result = await ensureGithubRelease({
+      github,
+      owner: 'owner',
+      repo: 'repo',
+      tagName: '@scope/pkg@1.2.3',
+      releaseNotes: 'notes',
+      logger,
+    });
+
+    expect(result).toBe('skipped');
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('skipped (already exists; race or duplicate create)'),
+    );
+  });
+
   it('creates releases only for published packages list', async () => {
     const git = createGitMock();
     const github = createGithubMock();
@@ -86,6 +107,7 @@ describe('github releases helpers', () => {
     vi.mocked(git.hasLocalTag).mockReturnValue(false);
     vi.mocked(git.hasRemoteTag).mockReturnValue(false);
     vi.mocked(github.hasReleaseByTag).mockResolvedValue(false);
+    vi.mocked(github.createRelease).mockResolvedValue('created');
 
     await createGithubArtifactsForPublishedPackages({
       publishedPackages: [

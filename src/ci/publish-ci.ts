@@ -283,6 +283,31 @@ const ensureGithubResponse = async <T>(response: Response): Promise<T> => {
   return (await response.json()) as T;
 };
 
+/** GitHub POST /releases returns 422 when a release for this tag already exists (race or retry). */
+const isReleaseAlreadyExistsResponse = (
+  status: number,
+  bodyText: string,
+): boolean => {
+  if (status !== 422) {
+    return false;
+  }
+
+  if (bodyText.includes('already_exists')) {
+    return true;
+  }
+
+  try {
+    const parsed = JSON.parse(bodyText) as {
+      errors?: Array<{ code?: string }>;
+    };
+    return (
+      parsed.errors?.some((entry) => entry.code === 'already_exists') ?? false
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const createGithubApiClient = ({
   authToken,
 }: {
@@ -341,18 +366,19 @@ export const createGithubApiClient = ({
       );
 
       if (response.status === 422) {
-        const body = await response.text();
+        const errorBody = await response.text();
 
-        if (body.includes('already_exists')) {
-          return;
+        if (isReleaseAlreadyExistsResponse(422, errorBody)) {
+          return 'skipped';
         }
 
         throw new Error(
-          `GitHub API validation error while creating release ${tagName}: ${body}`,
+          `GitHub API validation error while creating release ${tagName}: ${errorBody}`,
         );
       }
 
       await ensureGithubResponse(response);
+      return 'created';
     },
   };
 };

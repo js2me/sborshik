@@ -33,7 +33,7 @@ export interface GithubClient {
     title: string;
     body: string;
     makeLatest: 'false' | 'legacy' | 'true';
-  }) => Promise<void>;
+  }) => Promise<'created' | 'skipped'>;
 }
 
 export const buildPackageTagName = (packageName: string, version: string) =>
@@ -105,7 +105,7 @@ export const ensureGithubRelease = async ({
     return 'skipped';
   }
 
-  await github.createRelease({
+  const outcome = await github.createRelease({
     owner,
     repo,
     tagName,
@@ -113,6 +113,13 @@ export const ensureGithubRelease = async ({
     body: releaseNotes,
     makeLatest: 'false',
   });
+
+  if (outcome === 'skipped') {
+    logger.info(
+      `[github-releases] release ${tagName}: skipped (already exists; race or duplicate create)`,
+    );
+    return 'skipped';
+  }
 
   logger.info(`[github-releases] release ${tagName}: created`);
   return 'created';

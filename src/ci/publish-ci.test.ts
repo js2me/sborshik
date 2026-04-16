@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPublishedPackagesWithReleaseNotes,
+  createGithubApiClient,
   parseGithubRepoFromRemoteUrl,
   parsePublishedPackagesFromChangesetPublishOutput,
 } from './publish-ci.js';
@@ -65,5 +66,59 @@ describe('publish ci helpers', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.releaseNotes).toContain('### [feature]');
     expect(result[0]?.tagMessage).toContain('[Release] @scope/core@1.0.0');
+  });
+});
+
+describe('createGithubApiClient', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns skipped when GitHub responds with release already_exists (422 JSON)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      text: async () =>
+        JSON.stringify({
+          message: 'Validation Failed',
+          errors: [
+            { resource: 'Release', code: 'already_exists', field: 'tag_name' },
+          ],
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const github = createGithubApiClient({ authToken: 'token' });
+    const result = await github.createRelease({
+      owner: 'o',
+      repo: 'r',
+      tagName: 'pkg@1.0.0',
+      title: 'pkg@1.0.0',
+      body: 'notes',
+      makeLatest: 'false',
+    });
+
+    expect(result).toBe('skipped');
+  });
+
+  it('returns created on 201 from create release', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const github = createGithubApiClient({ authToken: 'token' });
+    const result = await github.createRelease({
+      owner: 'o',
+      repo: 'r',
+      tagName: 'pkg@1.0.0',
+      title: 'pkg@1.0.0',
+      body: 'notes',
+      makeLatest: 'false',
+    });
+
+    expect(result).toBe('created');
   });
 });
