@@ -95,7 +95,9 @@ describe('github releases helpers', () => {
 
     expect(result).toBe('skipped');
     expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('skipped (already exists; race or duplicate create)'),
+      expect.stringContaining(
+        'skipped (already exists; race or duplicate create)',
+      ),
     );
   });
 
